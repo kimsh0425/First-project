@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>코인 노래방 관리 프로그램</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: #f2f2f2;
+      }
+
+      .hidden {
+        display: none;
+      }
+
+      /* 로그인 화면 스타일 */
+      .login-container {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background: #f7f7f7;
+      }
+      .login-container h1 {
+        margin-bottom: 20px;
+      }
+      .login-form {
+        display: flex;
+        flex-direction: column;
+        width: 300px;
+      }
+      .login-form input {
+        margin-bottom: 10px;
+        padding: 10px;
+        font-size: 16px;
+      }
+      .login-form button {
+        padding: 10px;
+        font-size: 16px;
+        cursor: pointer;
+        background: #3498db;
+        border: none;
+        color: #fff;
+        border-radius: 5px;
+      }
+      .login-form button:hover {
+        background: #2980b9;
+      }
+      .error-message {
+        color: red;
+        margin-bottom: 10px;
+        text-align: center;
+      }
+
+      /* 메인 화면 스타일 */
+      .main-container {
+        display: none;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        background: #ffffff;
+        height: 100vh;
+        padding: 40px;
+        box-sizing: border-box;
+      }
+      .main-container h1 {
+        font-size: 2rem;
+        margin-bottom: 20px;
+      }
+
+      .main-container button {
+        padding: 10px 20px;
+        font-size: 1rem;
+        margin-top: 20px;
+        cursor: pointer;
+        background: #3498db;
+        border: none;
+        color: #fff;
+        border-radius: 5px;
+      }
+      .main-container button:hover {
+        background: #2980b9;
+      }
+
+      /* 레이아웃 화면 */
+      .layout-container {
+        display: none;
+        width: 100vw;
+        height: 100vh;
+        background: #0c3679; /* 연한 남색 배경 */
+        box-sizing: border-box;
+        padding: 20px;
+      }
+
+      /* 6x6 그리드 */
+      .building-grid {
+        display: grid;
+        grid-template-columns: repeat(8, 100px);
+        grid-template-rows: repeat(6, 100px);
+        gap: 20px; /* 방 사이에 약간의 간격 */
+        width: fit-content;
+        margin: 0 auto; /* 화면 중앙 배치 */
+      }
+
+      /* 방 스타일 */
+      .room-box {
+        width: 100px;
+        height: 100px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        color: #ffffff;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        text-align: center;
+        box-sizing: border-box;
+      }
+
+      /* 비어있는 방 - 파란색 */
+      .vacant-room {
+        background-color: #0aaaf4;
+        border: 2px solid #333;
+      }
+
+      /* 사용중인 방 - 빨간색 */
+      .occupied-room {
+        background-color: #ff8a80;
+        border: 2px solid #333;
+      }
+
+      /* 비방 영역(0, 입구, 프런트 등) */
+      .empty-cell {
+        width: 100px;
+        height: 100px;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- 로그인 화면 -->
+    <div class="login-container" id="loginView">
+      <h1>관리자 로그인</h1>
+      <form class="login-form" id="loginForm">
+        <div class="error-message" id="errorMessage"></div>
+        <input type="text" id="userId" placeholder="ID" />
+        <input type="password" id="userPw" placeholder="Password" />
+        <button type="submit">로그인</button>
+      </form>
+    </div>
+
+    <!-- 메인 화면 -->
+    <div class="main-container" id="mainView">
+      <h1>OO 코인 노래방 관리 화면</h1>
+      <p>로그인 성공! 여기서 방 구조를 확인할 수 있습니다.</p>
+      <button id="showLayoutBtn">방 구조 보기</button>
+    </div>
+
+    <!-- 레이아웃 화면 -->
+    <div class="layout-container" id="layoutView">
+      <div class="building-grid" id="buildingGrid"></div>
+    </div>
+
+    <script>
+      const VALID_ID = "admin";
+      const VALID_PW = "1234";
+
+      const loginForm = document.getElementById("loginForm");
+      const errorMessage = document.getElementById("errorMessage");
+      const loginView = document.getElementById("loginView");
+      const mainView = document.getElementById("mainView");
+      const layoutView = document.getElementById("layoutView");
+      const buildingGrid = document.getElementById("buildingGrid");
+      const showLayoutBtn = document.getElementById("showLayoutBtn");
+
+      // 6x6 구조 정의 (문자열 혹은 숫자로 표기)
+      // 0: 빈공간(벽), '입구', '프런트'는 특수공간, 숫자는 방번호
+      const layout = [
+        ["11", "0", "12", "13", "스테프룸", "0", "0", "입구"],
+        ["10", "0", "0", "0", "0", "0", "프런트", "0"],
+        ["9", "0", "15", "14", "21", "0", "0", "0"],
+        ["8", "0", "16", "17", "18", "19", "20", "0"],
+        ["7", "0", "0", "0", "0", "0", "0", "0"],
+        ["6", , "0", "5", "4", "3", "0", "2", "1"],
+      ];
+
+      // 방 상태 관리 (모든 방은 처음 비어있음)
+      // 이곳에서 방번호를 key로 해서 vacant: true 관리
+      const roomsState = {};
+
+      // layout에 있는 방 번호들 추출하여 초기 상태 설정
+      layout.flat().forEach((cell) => {
+        const roomNum = parseInt(cell, 10);
+        if (!isNaN(roomNum)) {
+          // 방 번호
+          roomsState[roomNum] = { vacant: true };
+        }
+      });
+
+      function createBuildingLayout() {
+        buildingGrid.innerHTML = "";
+        layout.forEach((row) => {
+          row.forEach((cell) => {
+            const cellDiv = document.createElement("div");
+
+            if (
+              cell === "0" ||
+              cell === "입구" ||
+              cell === "프런트" ||
+              cell === "스테프룸"
+            ) {
+              // 비방 영역
+              cellDiv.classList.add("empty-cell");
+              if (cell === "입구" || cell === "프런트" || cell === "스테프룸") {
+                cellDiv.style.display = "flex";
+                cellDiv.style.justifyContent = "center";
+                cellDiv.style.alignItems = "center";
+                cellDiv.style.color = "#fff";
+                cellDiv.style.fontWeight = "bold";
+                cellDiv.textContent = cell;
+              }
+            } else {
+              // 방 영역
+              const roomNum = parseInt(cell, 10);
+              const roomInfo = roomsState[roomNum];
+              const roomDiv = document.createElement("div");
+              roomDiv.classList.add("room-box");
+              if (roomInfo.vacant) {
+                roomDiv.classList.add("vacant-room");
+                roomDiv.innerHTML = `${roomNum}번방<br>(비어있음)`;
+              } else {
+                roomDiv.classList.add("occupied-room");
+                roomDiv.innerHTML = `${roomNum}번방<br>(사용중)`;
+              }
+
+              roomDiv.addEventListener("click", () => {
+                // 방 상태 토글
+                roomsState[roomNum].vacant = !roomsState[roomNum].vacant;
+                updateRoomBox(roomDiv, roomNum);
+              });
+
+              cellDiv.appendChild(roomDiv);
+            }
+
+            buildingGrid.appendChild(cellDiv);
+          });
+        });
+      }
+
+      function updateRoomBox(roomDiv, roomNum) {
+        const roomInfo = roomsState[roomNum];
+        roomDiv.classList.remove("vacant-room", "occupied-room");
+        if (roomInfo.vacant) {
+          roomDiv.classList.add("vacant-room");
+          roomDiv.innerHTML = `${roomNum}번방<br>(비어있음)`;
+        } else {
+          roomDiv.classList.add("occupied-room");
+          roomDiv.innerHTML = `${roomNum}번방<br>(사용중)`;
+        }
+      }
+
+      // 페이지 로드 시 로그인 화면
+      loginView.style.display = "flex";
+
+      // 로그인 처리
+      loginForm.addEventListener("submit", function (event) {
+        event.preventDefault();
+        const userId = document.getElementById("userId").value.trim();
+        const userPw = document.getElementById("userPw").value.trim();
+
+        if (userId === VALID_ID && userPw === VALID_PW) {
+          loginView.style.display = "none";
+          mainView.style.display = "flex";
+        } else {
+          errorMessage.textContent = "아이디나 비밀번호가 잘못되었습니다.";
+        }
+      });
+
+      showLayoutBtn.addEventListener("click", () => {
+        mainView.style.display = "none";
+        layoutView.style.display = "block";
+        createBuildingLayout();
+      });
+    </script>
+  </body>
+</html>
